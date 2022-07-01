@@ -77,9 +77,12 @@ signalloop:
 func (s *Server) registerHandlers() error {
 	s.mux = http.NewServeMux()
 
+	headers := make(map[string][]string)
+	corehttp.AddAccessControlHeaders(headers)
+
 	cfg := corehttp.GatewayConfig{
 		Writable: false,
-		Headers:  corehttp.AccessControlHeaders(),
+		Headers:  headers,
 	}
 
 	gwHandler := corehttp.NewGatewayHandler(cfg, s.Gateway)

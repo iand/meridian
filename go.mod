@@ -272,4 +272,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ipfs/go-ipfs => github.com/iand/go-ipfs v0.13.1-0.20220630150429-91e0181f84ac
+replace github.com/ipfs/go-ipfs => github.com/iand/go-ipfs v0.13.1-0.20220701080148-636ea11bba99
