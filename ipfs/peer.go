@@ -16,7 +16,6 @@ import (
 	blockservice "github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	badger "github.com/ipfs/go-ds-badger2"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	offline "github.com/ipfs/go-ipfs-exchange-offline"
 	pin "github.com/ipfs/go-ipfs-pinner"
@@ -36,9 +35,10 @@ import (
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p-kad-dht/fullrt"
 	libp2ptls "github.com/libp2p/go-libp2p-tls"
-	connmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
 	multihash "github.com/multiformats/go-multihash"
+
+	"github.com/iand/meridian/conf"
 )
 
 var logger = logging.Logger("ipfs")
@@ -71,11 +71,10 @@ type PeerConfig struct {
 	Name              string
 	Offline           bool
 	ReprovideInterval time.Duration
-	DatastorePath     string
+	Datastore         datastore.Batching
 	FileSystemPath    string
 	ListenAddr        string
 	Libp2pKeyFile     string
-	ManifestPath      string
 }
 
 type Peer struct {
@@ -84,8 +83,6 @@ type Peer struct {
 	listenAddr        multiaddr.Multiaddr
 	peerKey           crypto.PrivKey
 	datastorePath     string
-	fileSystemPath    string
-	manifestPath      string
 	builder           cid.Builder
 
 	host host.Host
@@ -101,26 +98,26 @@ type Peer struct {
 	provider provider.System
 }
 
-func NewPeer(cfg *PeerConfig) (*Peer, error) {
+func NewPeer(pcfg *PeerConfig, cfg *conf.Config) (*Peer, error) {
 	// Create a temporary context to hold metrics metadata
-	ctx := metrics.CtxScope(context.Background(), cfg.Name)
+	ctx := metrics.CtxScope(context.Background(), pcfg.Name)
 
 	p := new(Peer)
 
-	if err := p.applyConfig(cfg); err != nil {
+	if err := p.applyConfig(pcfg); err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
 
-	if err := p.setupDatastore(); err != nil {
+	if err := p.setupDatastore(ctx, cfg); err != nil {
 		return nil, fmt.Errorf("setup datastore: %w", err)
 	}
 
-	if err := p.setupBlockstore(ctx); err != nil {
+	if err := p.setupBlockstore(ctx, cfg); err != nil {
 		return nil, fmt.Errorf("setup blockstore: %w", err)
 	}
 
 	if !p.offline {
-		if err := p.setupLibp2p(ctx); err != nil {
+		if err := p.setupLibp2p(ctx, cfg); err != nil {
 			return nil, fmt.Errorf("setup libp2p: %w", err)
 		}
 
@@ -128,7 +125,7 @@ func NewPeer(cfg *PeerConfig) (*Peer, error) {
 			return nil, fmt.Errorf("setup dht: %w", err)
 		}
 
-		if err := p.bootstrap(ctx, BootstrapPeers); err != nil {
+		if err := p.bootstrap(ctx, cfg); err != nil {
 			return nil, fmt.Errorf("bootstrap: %w", err)
 		}
 	}
@@ -174,23 +171,12 @@ func (p *Peer) applyConfig(cfg *PeerConfig) error {
 	}
 
 	p.offline = cfg.Offline
-	p.manifestPath = cfg.ManifestPath
 
 	if cfg.ReprovideInterval == 0 {
 		p.reprovideInterval = defaultReprovideInterval
 	} else {
 		p.reprovideInterval = cfg.ReprovideInterval
 	}
-
-	if cfg.DatastorePath == "" {
-		return fmt.Errorf("missing datastore path")
-	}
-	p.datastorePath = cfg.DatastorePath
-
-	if cfg.FileSystemPath == "" {
-		return fmt.Errorf("missing file system path")
-	}
-	p.fileSystemPath = cfg.FileSystemPath
 
 	var err error
 	p.listenAddr, err = multiaddr.NewMultiaddr(cfg.ListenAddr)
@@ -221,36 +207,6 @@ func (p *Peer) applyConfig(cfg *PeerConfig) error {
 	prefix.MhLength = -1
 
 	p.builder = &prefix
-
-	return nil
-}
-
-func (p *Peer) setupDatastore() error {
-	logger.Debugf("setting up ipfs datastore at %s", p.datastorePath)
-	opts := badger.DefaultOptions
-
-	ds, err := badger.NewDatastore(p.datastorePath, &opts)
-	if err != nil {
-		return fmt.Errorf("new datastore: %w", err)
-	}
-	p.ds = ds
-	return nil
-}
-
-func (p *Peer) setupBlockstore(ctx context.Context) error {
-	logger.Debug("setting up ipfs blockstore")
-
-	bs := blockstore.NewBlockstore(p.ds)
-	bs = blockstore.NewIdStore(bs)
-	bs.HashOnRead(true)
-
-	cbs, err := blockstore.CachedBlockstore(ctx, bs, blockstore.DefaultCacheOpts())
-	if err != nil {
-		return fmt.Errorf("new cached blockstore: %w", err)
-	}
-
-	gclocker := blockstore.NewGCLocker()
-	p.bs = blockstore.NewGCBlockstore(cbs, gclocker)
 
 	return nil
 }
@@ -325,77 +281,6 @@ func (p *Peer) setupReprovider(ctx context.Context) error {
 	p.mu.Lock()
 	p.provider = reprovider
 	p.mu.Unlock()
-
-	return nil
-}
-
-func (p *Peer) bootstrap(ctx context.Context, peers []peer.AddrInfo) error {
-	logger.Info("bootstrapping ipfs node")
-	connected := make(chan struct{}, len(peers))
-
-	var wg sync.WaitGroup
-	for _, pinfo := range peers {
-		// h.Peerstore().AddAddrs(pinfo.ID, pinfo.Addrs, peerstore.PermanentAddrTTL)
-		wg.Add(1)
-		go func(pinfo peer.AddrInfo) {
-			defer wg.Done()
-			err := p.host.Connect(ctx, pinfo)
-			if err != nil {
-				logger.Warn(err)
-				return
-			}
-			logger.Debugf("Connected to %s", pinfo.ID)
-			connected <- struct{}{}
-		}(pinfo)
-	}
-
-	wg.Wait()
-	close(connected)
-
-	i := 0
-	for range connected {
-		i++
-	}
-
-	logger.Debugf("connected to %d peers", len(peers))
-
-	err := p.dht.Bootstrap(context.TODO())
-	if err != nil {
-		return fmt.Errorf("dht bootstrap: %w", err)
-	}
-
-	p.logHostAddresses()
-
-	return nil
-}
-
-func (p *Peer) setupLibp2p(ctx context.Context) error {
-	var err error
-
-	connmgr, err := connmgr.NewConnManager(100, 600, connmgr.WithGracePeriod(time.Minute))
-	if err != nil {
-		return fmt.Errorf("libp2p: %w", err)
-	}
-
-	finalOpts := []libp2p.Option{
-		libp2p.Identity(p.peerKey),
-		libp2p.ListenAddrs(p.listenAddr),
-		libp2p.NATPortMap(),
-		libp2p.ConnectionManager(connmgr),
-		libp2p.EnableAutoRelay(),
-		libp2p.EnableNATService(),
-		libp2p.Security(libp2ptls.ID, libp2ptls.New),
-		libp2p.DefaultTransports,
-	}
-
-	h, err := libp2p.New(
-		finalOpts...,
-	)
-	if err != nil {
-		return fmt.Errorf("new libp2p: %w", err)
-	}
-
-	p.host = h
 
 	return nil
 }
@@ -502,4 +387,189 @@ func (p *Peer) Routing() routing.Routing {
 
 func (p *Peer) ProviderSystem() provider.System {
 	return p.provider
+}
+
+func (p *Peer) setupDatastore(ctx context.Context, cfg *conf.Config) error {
+	logger.Debug("setting up ipfs datastore")
+	// Init datastore first
+	module, err := getSingletonModule(conf.ModuleCategoryDatastore, cfg.Datastore.Modules, "badger2")
+	if err != nil {
+		return fmt.Errorf("get datastore module: %w", err)
+	}
+
+	ds, err := module.(conf.DatastoreProvider).ProvideDatastore(ctx)
+	if err != nil {
+		return fmt.Errorf("provide datastore: %w", err)
+	}
+
+	logger.Infof("using datastore: %s", module.ID())
+	p.ds = ds
+
+	// Init datastore wrappers
+	dswmodules, err := getModules(conf.ModuleCategoryDatastoreWrapper, cfg.DatastoreWrapper.Modules)
+	if err != nil {
+		return fmt.Errorf("get datastore wrapper modules: %w", err)
+	}
+
+	for _, module := range dswmodules {
+		ds, err := module.(conf.DatastoreWrapper).WrapDatastore(ctx, p.ds)
+		if err != nil {
+			return fmt.Errorf("wrap datastore: %w", err)
+		}
+
+		logger.Infof("using datastore wrapper: %s", module.ID())
+		p.ds = ds
+	}
+
+	return nil
+}
+
+func (p *Peer) setupBlockstore(ctx context.Context, cfg *conf.Config) error {
+	logger.Debug("setting up ipfs blockstore")
+
+	module, err := getSingletonModule(conf.ModuleCategoryBlockstore, cfg.Blockstore.Modules, "basic")
+	if err != nil {
+		return fmt.Errorf("get blockstore module: %w", err)
+	}
+
+	pbs, err := module.(conf.BlockstoreProvider).ProvideBlockstore(ctx, p.ds)
+	if err != nil {
+		return fmt.Errorf("provide blockstore: %w", err)
+	}
+
+	logger.Infof("using blockstore: %s", module.ID())
+
+	// Init blockstore wrappers
+	bswmodules, err := getModules(conf.ModuleCategoryBlockstoreWrapper, cfg.BlockstoreWrapper.Modules)
+	if err != nil {
+		return fmt.Errorf("get blockstore wrapper modules: %w", err)
+	}
+
+	for _, module := range bswmodules {
+		bs, err := module.(conf.BlockstoreWrapper).WrapBlockstore(ctx, pbs)
+		if err != nil {
+			return fmt.Errorf("wrap blockstore: %w", err)
+		}
+
+		logger.Infof("using blockstore wrapper: %s", module.ID())
+		pbs = bs
+	}
+
+	gclocker := blockstore.NewGCLocker()
+	p.bs = blockstore.NewGCBlockstore(pbs, gclocker)
+
+	return nil
+}
+
+func (p *Peer) bootstrap(ctx context.Context, cfg *conf.Config) error {
+	logger.Info("bootstrapping ipfs node")
+
+	module, err := getSingletonModule(conf.ModuleCategoryBootstrapper, cfg.Bootstrapper.Modules, "basic")
+	if err != nil {
+		return fmt.Errorf("get module: %w", err)
+	}
+
+	if err := module.(conf.Bootstrapper).BootstrapHost(ctx, p.host, BootstrapPeers); err != nil {
+		return fmt.Errorf("bootstrap host: %w", err)
+	}
+
+	if err := p.dht.Bootstrap(ctx); err != nil {
+		return fmt.Errorf("dht bootstrap: %w", err)
+	}
+
+	p.logHostAddresses()
+
+	return nil
+}
+
+func (p *Peer) setupLibp2p(ctx context.Context, cfg *conf.Config) error {
+	var err error
+
+	module, err := getSingletonModule(conf.ModuleCategoryConnManager, cfg.ConnectionManager.Modules, "basic")
+	if err != nil {
+		return fmt.Errorf("get module: %w", err)
+	}
+
+	connmgr, err := module.(conf.ConnManagerProvider).ProvideConnManager(ctx)
+	if err != nil {
+		return fmt.Errorf("provide conn manager host: %w", err)
+	}
+
+	finalOpts := []libp2p.Option{
+		libp2p.Identity(p.peerKey),
+		libp2p.ListenAddrs(p.listenAddr),
+		libp2p.NATPortMap(),
+		libp2p.ConnectionManager(connmgr),
+		libp2p.EnableAutoRelay(),
+		libp2p.EnableNATService(),
+		libp2p.Security(libp2ptls.ID, libp2ptls.New),
+		libp2p.DefaultTransports,
+	}
+
+	h, err := libp2p.New(
+		finalOpts...,
+	)
+	if err != nil {
+		return fmt.Errorf("new libp2p: %w", err)
+	}
+
+	p.host = h
+
+	return nil
+}
+
+func getSingletonModule(category string, cfglist []conf.ModuleConfig, defaultID string) (conf.Module, error) {
+	if len(cfglist) > 1 {
+		return nil, fmt.Errorf("too many %s modules specified in configuration, only one is allowed", category)
+	}
+
+	modules := conf.ModulesForCategory(category)
+
+	var module conf.Module
+	if len(cfglist) == 0 {
+		var ok bool
+		module, ok = modules[defaultID]
+		if !ok {
+			return nil, fmt.Errorf("default %s %q is not a loaded module", category, defaultID)
+		}
+	} else {
+		moduleconf := cfglist[0]
+		var ok bool
+		module, ok = modules[moduleconf.ID]
+		if !ok {
+			return nil, fmt.Errorf("%s %q specified in configuratiion is not a loaded module", category, moduleconf.ID)
+		}
+		if err := moduleconf.Configure(module); err != nil {
+			return nil, fmt.Errorf("unmarshal %s %q config: %w", category, moduleconf.ID, err)
+		}
+
+		if err := module.ValidateModule(); err != nil {
+			return nil, fmt.Errorf("validate %s %q config: %w", category, moduleconf.ID, err)
+		}
+	}
+
+	return module, nil
+}
+
+func getModules(category string, cfglist []conf.ModuleConfig) ([]conf.Module, error) {
+	modules := conf.ModulesForCategory(category)
+
+	mods := []conf.Module{}
+	for _, moduleconf := range cfglist {
+		module, ok := modules[moduleconf.ID]
+		if !ok {
+			return nil, fmt.Errorf("%s %q specified in configuration is not a loaded module", category, moduleconf.ID)
+		}
+		if err := moduleconf.Configure(module); err != nil {
+			return nil, fmt.Errorf("unmarshal %s %q config: %w", category, moduleconf.ID, err)
+		}
+
+		if err := module.ValidateModule(); err != nil {
+			return nil, fmt.Errorf("validate %s %q config: %w", category, moduleconf.ID, err)
+		}
+
+		mods = append(mods, module)
+	}
+
+	return mods, nil
 }
