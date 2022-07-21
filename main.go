@@ -120,7 +120,6 @@ var (
 	flags = []cli.Flag{
 		&cli.StringFlag{
 			Name:        "config",
-			Aliases:     []string{"ipfs-fileroot"}, // old name for this flag
 			Usage:       "Path to JSON config file.",
 			Value:       "", // TODO: remove default
 			Destination: &flagValues.configPath,
