@@ -10,10 +10,19 @@ import (
 )
 
 func init() {
-	conf.RegisterModule(conf.ModuleCategoryBootstrapper, &Basic{})
+	conf.RegisterModule(conf.ModuleCategoryBootstrapper, &Basic{
+		BootstrapPeers: []string{
+			"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+			"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+			"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+			"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+		},
+	})
 }
 
-type Basic struct{}
+type Basic struct {
+	BootstrapPeers []string `json:"bootstrap_peers"`
+}
 
 func (b *Basic) ID() string { return "basic" }
 
@@ -21,8 +30,8 @@ func (b *Basic) ValidateModule() error {
 	return nil
 }
 
-func (b *Basic) BootstrapHost(ctx context.Context, h host.Host, peers []peer.AddrInfo) error {
-	connected := make(chan struct{}, len(peers))
+func (b *Basic) BootstrapHost(ctx context.Context, h host.Host) error {
+	peers := conf.ParsePeerList(b.BootstrapPeers)
 
 	var wg sync.WaitGroup
 	for _, pinfo := range peers {
@@ -33,16 +42,9 @@ func (b *Basic) BootstrapHost(ctx context.Context, h host.Host, peers []peer.Add
 			if err != nil {
 				return
 			}
-			connected <- struct{}{}
 		}(pinfo)
 	}
 
 	wg.Wait()
-	close(connected)
-
-	i := 0
-	for range connected {
-		i++
-	}
 	return nil
 }

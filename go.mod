@@ -38,16 +38,16 @@ require (
 	github.com/jbenet/goprocess v0.1.4 // indirect
 	github.com/libp2p/go-libp2p v0.19.4
 	github.com/libp2p/go-libp2p-core v0.15.1
-	github.com/libp2p/go-libp2p-kad-dht v0.16.0
+	github.com/libp2p/go-libp2p-kad-dht v0.16.0 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.4.7 // indirect
 	github.com/libp2p/go-libp2p-loggables v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-mplex v0.7.0 // indirect
 	github.com/libp2p/go-libp2p-noise v0.4.0 // indirect
 	github.com/libp2p/go-libp2p-peerstore v0.6.0 // indirect
 	github.com/libp2p/go-libp2p-quic-transport v0.17.0 // indirect
-	github.com/libp2p/go-libp2p-record v0.1.3 // indirect
+	github.com/libp2p/go-libp2p-record v0.1.3
 	github.com/libp2p/go-libp2p-resource-manager v0.3.0 // indirect
-	github.com/libp2p/go-libp2p-routing-helpers v0.2.3 // indirect
+	github.com/libp2p/go-libp2p-routing-helpers v0.2.3
 	github.com/libp2p/go-libp2p-swarm v0.10.2 // indirect
 	github.com/libp2p/go-libp2p-tls v0.4.1
 	github.com/libp2p/go-libp2p-yamux v0.9.1 // indirect

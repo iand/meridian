@@ -9,8 +9,8 @@ import (
 	"github.com/ipfs/go-ipfs-blockstore"
 	"github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/routing"
+	"github.com/libp2p/go-libp2p-record"
 )
 
 const (
@@ -20,6 +20,7 @@ const (
 	ModuleCategoryBlockstoreWrapper = "blockstore_wrapper"
 	ModuleCategoryBootstrapper      = "bootstrapper"
 	ModuleCategoryRouting           = "routing"
+	ModuleCategoryRoutingComposer   = "routing_composer"
 	ModuleCategoryConnManager       = "connection_manager"
 )
 
@@ -48,11 +49,15 @@ type BlockstoreWrapper interface {
 }
 
 type Bootstrapper interface {
-	BootstrapHost(context.Context, host.Host, []peer.AddrInfo) error
+	BootstrapHost(context.Context, host.Host) error
 }
 
 type RoutingProvider interface {
-	ProvideRouting(context.Context) (routing.Routing, error)
+	ProvideRouting(context.Context, datastore.Batching, host.Host, record.Validator) (routing.Routing, error)
+}
+
+type RoutingComposer interface {
+	ComposeRouting(context.Context, []routing.Routing, record.Validator) (routing.Routing, error)
 }
 
 type ConnManagerProvider interface {
@@ -72,36 +77,39 @@ func RegisterModule(category string, module Module) {
 		panic(fmt.Sprintf("failed to register nil module for category %q", category))
 	}
 
+	// modules must implement the correct interface
 	switch category {
 	case ModuleCategoryDatastore:
-		// module must implement the correct interface
 		if _, ok := module.(DatastoreProvider); !ok {
 			panic(fmt.Sprintf("failed to register module %q for category %q since it does not implement the DatastoreProvider interface", module.ID(), category))
 		}
 	case ModuleCategoryDatastoreWrapper:
-		// module must implement the correct interface
 		if _, ok := module.(DatastoreWrapper); !ok {
 			panic(fmt.Sprintf("failed to register module %q for category %q since it does not implement the DatastoreWrapper interface", module.ID(), category))
 		}
 	case ModuleCategoryBlockstore:
-		// module must implement the correct interface
 		if _, ok := module.(BlockstoreProvider); !ok {
 			panic(fmt.Sprintf("failed to register module %q for category %q since it does not implement the BlockstoreProvider interface", module.ID(), category))
 		}
 	case ModuleCategoryBlockstoreWrapper:
-		// module must implement the correct interface
 		if _, ok := module.(BlockstoreWrapper); !ok {
 			panic(fmt.Sprintf("failed to register module %q for category %q since it does not implement the BlockstoreWrapper interface", module.ID(), category))
 		}
 	case ModuleCategoryBootstrapper:
-		// module must implement the correct interface
 		if _, ok := module.(Bootstrapper); !ok {
 			panic(fmt.Sprintf("failed to register module %q for category %q since it does not implement the Bootstrapper interface", module.ID(), category))
 		}
 	case ModuleCategoryConnManager:
-		// module must implement the correct interface
 		if _, ok := module.(ConnManagerProvider); !ok {
 			panic(fmt.Sprintf("failed to register module %q for category %q since it does not implement the ConnManagerProvider interface", module.ID(), category))
+		}
+	case ModuleCategoryRouting:
+		if _, ok := module.(RoutingProvider); !ok {
+			panic(fmt.Sprintf("failed to register module %q for category %q since it does not implement the RoutingProvider interface", module.ID(), category))
+		}
+	case ModuleCategoryRoutingComposer:
+		if _, ok := module.(RoutingComposer); !ok {
+			panic(fmt.Sprintf("failed to register module %q for category %q since it does not implement the RoutingComposer interface", module.ID(), category))
 		}
 	default:
 		panic(fmt.Sprintf("failed to register module %q since it specifies invalid category %q", module.ID(), category))

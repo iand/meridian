@@ -24,16 +24,17 @@ import (
 	"github.com/ipfs/go-ipfs-provider/queue"
 	"github.com/ipfs/go-ipfs-provider/simple"
 	ipld "github.com/ipfs/go-ipld-format"
+	"github.com/ipfs/go-ipns"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipfs/go-merkledag"
 	metrics "github.com/ipfs/go-metrics-interface"
 	"github.com/libp2p/go-libp2p"
 	crypto "github.com/libp2p/go-libp2p-core/crypto"
 	host "github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
+	coremetrics "github.com/libp2p/go-libp2p-core/metrics"
 	routing "github.com/libp2p/go-libp2p-core/routing"
-	dht "github.com/libp2p/go-libp2p-kad-dht"
-	"github.com/libp2p/go-libp2p-kad-dht/fullrt"
+	"github.com/libp2p/go-libp2p-record"
+	"github.com/libp2p/go-libp2p-routing-helpers"
 	libp2ptls "github.com/libp2p/go-libp2p-tls"
 	"github.com/multiformats/go-multiaddr"
 	multihash "github.com/multiformats/go-multihash"
@@ -43,51 +44,17 @@ import (
 
 var logger = logging.Logger("ipfs")
 
-var BootstrapPeers = []peer.AddrInfo{
-	mustParseAddr("/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN"),
-	mustParseAddr("/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa"),
-	mustParseAddr("/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb"),
-	mustParseAddr("/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt"),
-}
-
-func mustParseAddr(addr string) peer.AddrInfo {
-	ma, err := multiaddr.NewMultiaddr(addr)
-	if err != nil {
-		panic(fmt.Sprintf("failed to parse bootstrap address: %v", err))
-	}
-
-	ai, err := peer.AddrInfoFromP2pAddr(ma)
-	if err != nil {
-		panic(fmt.Sprintf("failed to create address info: %v", err))
-	}
-
-	return *ai
-}
-
 var defaultReprovideInterval = 12 * time.Hour
-
-// Config wraps configuration options for the Peer.
-type PeerConfig struct {
-	Name              string
-	Offline           bool
-	ReprovideInterval time.Duration
-	Datastore         datastore.Batching
-	FileSystemPath    string
-	ListenAddr        string
-	Libp2pKeyFile     string
-}
 
 type Peer struct {
 	offline           bool
 	reprovideInterval time.Duration
-	listenAddr        multiaddr.Multiaddr
-	peerKey           crypto.PrivKey
-	datastorePath     string
+	validator         record.Validator
 	builder           cid.Builder
 
-	host host.Host
-	dht  routing.Routing
-	ds   datastore.Batching
+	host    host.Host
+	routing routing.Routing
+	ds      datastore.Batching
 
 	dag    ipld.DAGService // (consider ipld.BufferedDAG)
 	bs     blockstore.GCBlockstore
@@ -98,13 +65,13 @@ type Peer struct {
 	provider provider.System
 }
 
-func NewPeer(pcfg *PeerConfig, cfg *conf.Config) (*Peer, error) {
+func NewPeer(cfg *conf.Config) (*Peer, error) {
 	// Create a temporary context to hold metrics metadata
-	ctx := metrics.CtxScope(context.Background(), pcfg.Name)
+	ctx := metrics.CtxScope(context.Background(), cfg.Peer.Name)
 
 	p := new(Peer)
 
-	if err := p.applyConfig(pcfg); err != nil {
+	if err := p.applyConfig(cfg); err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
 
@@ -117,11 +84,11 @@ func NewPeer(pcfg *PeerConfig, cfg *conf.Config) (*Peer, error) {
 	}
 
 	if !p.offline {
-		if err := p.setupLibp2p(ctx, cfg); err != nil {
+		if err := p.setupHost(ctx, cfg); err != nil {
 			return nil, fmt.Errorf("setup libp2p: %w", err)
 		}
 
-		if err := p.setupDHT(ctx); err != nil {
+		if err := p.setupRouting(ctx, cfg); err != nil {
 			return nil, fmt.Errorf("setup dht: %w", err)
 		}
 
@@ -165,32 +132,18 @@ func (p *Peer) Close() error {
 	return nil
 }
 
-func (p *Peer) applyConfig(cfg *PeerConfig) error {
+func (p *Peer) applyConfig(cfg *conf.Config) error {
 	if cfg == nil {
-		cfg = &PeerConfig{}
+		cfg = &conf.Config{}
 	}
 
-	p.offline = cfg.Offline
+	p.offline = cfg.Peer.Offline
 
-	if cfg.ReprovideInterval == 0 {
-		p.reprovideInterval = defaultReprovideInterval
-	} else {
-		p.reprovideInterval = cfg.ReprovideInterval
-	}
-
-	var err error
-	p.listenAddr, err = multiaddr.NewMultiaddr(cfg.ListenAddr)
-	if err != nil {
-		return fmt.Errorf("listen addr: %w", err)
-	}
-
-	if cfg.Libp2pKeyFile == "" {
-		return fmt.Errorf("missing libp2p keyfile")
-	}
-	p.peerKey, err = loadOrInitPeerKey(cfg.Libp2pKeyFile)
-	if err != nil {
-		return fmt.Errorf("key file: %w", err)
-	}
+	// if cfg.ReprovideInterval == 0 {
+	p.reprovideInterval = defaultReprovideInterval
+	// } else {
+	// 	p.reprovideInterval = cfg.ReprovideInterval
+	// }
 
 	// Set up a consistent cid builder
 	const hashfunc = "sha2-256"
@@ -218,7 +171,7 @@ func (p *Peer) setupBlockService(ctx context.Context) error {
 		return nil
 	}
 
-	bswapnet := network.NewFromIpfsHost(p.host, p.dht)
+	bswapnet := network.NewFromIpfsHost(p.host, p.routing)
 
 	bswap := bitswap.New(ctx, bswapnet, p.bs,
 		bitswap.ProvideEnabled(false),
@@ -265,13 +218,13 @@ func (p *Peer) setupReprovider(ctx context.Context) error {
 	prov := simple.NewProvider(
 		ctx,
 		queue,
-		p.dht,
+		p.routing,
 	)
 
 	reprov := simple.NewReprovider(
 		ctx,
 		p.reprovideInterval,
-		p.dht,
+		p.routing,
 		simple.NewBlockstoreProvider(p.bs),
 	)
 
@@ -282,22 +235,6 @@ func (p *Peer) setupReprovider(ctx context.Context) error {
 	p.provider = reprovider
 	p.mu.Unlock()
 
-	return nil
-}
-
-func (p *Peer) setupDHT(ctx context.Context) error {
-	dhtopts := fullrt.DHTOption(
-		dht.Datastore(p.ds),
-		dht.BootstrapPeers(BootstrapPeers...),
-		dht.BucketSize(20),
-	)
-
-	frt, err := fullrt.NewFullRT(p.host, dht.DefaultPrefix, dhtopts)
-	if err != nil {
-		return fmt.Errorf("new fullrt: %w", err)
-	}
-
-	p.dht = frt
 	return nil
 }
 
@@ -382,7 +319,7 @@ func (p *Peer) BlockService() blockservice.BlockService {
 }
 
 func (p *Peer) Routing() routing.Routing {
-	return p.dht
+	return p.routing
 }
 
 func (p *Peer) ProviderSystem() provider.System {
@@ -392,7 +329,7 @@ func (p *Peer) ProviderSystem() provider.System {
 func (p *Peer) setupDatastore(ctx context.Context, cfg *conf.Config) error {
 	logger.Debug("setting up ipfs datastore")
 	// Init datastore first
-	module, err := getSingletonModule(conf.ModuleCategoryDatastore, cfg.Datastore.Modules, "badger2")
+	module, err := cfg.LoadSingletonModule(conf.ModuleCategoryDatastore, "badger2")
 	if err != nil {
 		return fmt.Errorf("get datastore module: %w", err)
 	}
@@ -406,7 +343,7 @@ func (p *Peer) setupDatastore(ctx context.Context, cfg *conf.Config) error {
 	p.ds = ds
 
 	// Init datastore wrappers
-	dswmodules, err := getModules(conf.ModuleCategoryDatastoreWrapper, cfg.DatastoreWrapper.Modules)
+	dswmodules, err := cfg.LoadModules(conf.ModuleCategoryDatastoreWrapper)
 	if err != nil {
 		return fmt.Errorf("get datastore wrapper modules: %w", err)
 	}
@@ -427,7 +364,7 @@ func (p *Peer) setupDatastore(ctx context.Context, cfg *conf.Config) error {
 func (p *Peer) setupBlockstore(ctx context.Context, cfg *conf.Config) error {
 	logger.Debug("setting up ipfs blockstore")
 
-	module, err := getSingletonModule(conf.ModuleCategoryBlockstore, cfg.Blockstore.Modules, "basic")
+	module, err := cfg.LoadSingletonModule(conf.ModuleCategoryBlockstore, "basic")
 	if err != nil {
 		return fmt.Errorf("get blockstore module: %w", err)
 	}
@@ -440,7 +377,7 @@ func (p *Peer) setupBlockstore(ctx context.Context, cfg *conf.Config) error {
 	logger.Infof("using blockstore: %s", module.ID())
 
 	// Init blockstore wrappers
-	bswmodules, err := getModules(conf.ModuleCategoryBlockstoreWrapper, cfg.BlockstoreWrapper.Modules)
+	bswmodules, err := cfg.LoadModules(conf.ModuleCategoryBlockstoreWrapper)
 	if err != nil {
 		return fmt.Errorf("get blockstore wrapper modules: %w", err)
 	}
@@ -464,16 +401,16 @@ func (p *Peer) setupBlockstore(ctx context.Context, cfg *conf.Config) error {
 func (p *Peer) bootstrap(ctx context.Context, cfg *conf.Config) error {
 	logger.Info("bootstrapping ipfs node")
 
-	module, err := getSingletonModule(conf.ModuleCategoryBootstrapper, cfg.Bootstrapper.Modules, "basic")
+	module, err := cfg.LoadSingletonModule(conf.ModuleCategoryBootstrapper, "basic")
 	if err != nil {
 		return fmt.Errorf("get module: %w", err)
 	}
 
-	if err := module.(conf.Bootstrapper).BootstrapHost(ctx, p.host, BootstrapPeers); err != nil {
+	if err := module.(conf.Bootstrapper).BootstrapHost(ctx, p.host); err != nil {
 		return fmt.Errorf("bootstrap host: %w", err)
 	}
 
-	if err := p.dht.Bootstrap(ctx); err != nil {
+	if err := p.routing.Bootstrap(ctx); err != nil {
 		return fmt.Errorf("dht bootstrap: %w", err)
 	}
 
@@ -482,10 +419,17 @@ func (p *Peer) bootstrap(ctx context.Context, cfg *conf.Config) error {
 	return nil
 }
 
-func (p *Peer) setupLibp2p(ctx context.Context, cfg *conf.Config) error {
+func (p *Peer) setupHost(ctx context.Context, cfg *conf.Config) error {
 	var err error
+	if cfg.Peer.KeyFile == "" {
+		return fmt.Errorf("missing libp2p keyfile")
+	}
+	peerKey, err := loadOrInitPeerKey(cfg.Peer.KeyFile)
+	if err != nil {
+		return fmt.Errorf("load key file: %w", err)
+	}
 
-	module, err := getSingletonModule(conf.ModuleCategoryConnManager, cfg.ConnectionManager.Modules, "basic")
+	module, err := cfg.LoadSingletonModule(conf.ModuleCategoryConnManager, "basic")
 	if err != nil {
 		return fmt.Errorf("get module: %w", err)
 	}
@@ -495,81 +439,87 @@ func (p *Peer) setupLibp2p(ctx context.Context, cfg *conf.Config) error {
 		return fmt.Errorf("provide conn manager host: %w", err)
 	}
 
-	finalOpts := []libp2p.Option{
-		libp2p.Identity(p.peerKey),
-		libp2p.ListenAddrs(p.listenAddr),
+	opts := []libp2p.Option{
+		libp2p.Identity(peerKey),
 		libp2p.NATPortMap(),
 		libp2p.ConnectionManager(connmgr),
 		libp2p.EnableAutoRelay(),
 		libp2p.EnableNATService(),
 		libp2p.Security(libp2ptls.ID, libp2ptls.New),
 		libp2p.DefaultTransports,
+		libp2p.BandwidthReporter(coremetrics.NewBandwidthCounter()),
+	}
+
+	listenAddrs := conf.ParseAddrList(cfg.Peer.ListenAddrs)
+	if len(listenAddrs) > 0 {
+		opts = append(opts, libp2p.ListenAddrs(listenAddrs...))
+	}
+
+	announceAddrs := conf.ParseAddrList(cfg.Peer.AnnounceAddrs)
+	if len(announceAddrs) > 0 {
+		opts = append(opts, libp2p.AddrsFactory(func([]multiaddr.Multiaddr) []multiaddr.Multiaddr {
+			return announceAddrs
+		}))
 	}
 
 	h, err := libp2p.New(
-		finalOpts...,
+		opts...,
 	)
 	if err != nil {
-		return fmt.Errorf("new libp2p: %w", err)
+		return fmt.Errorf("new host: %w", err)
 	}
 
 	p.host = h
 
+	p.validator = record.NamespacedValidator{
+		"pk":   record.PublicKeyValidator{},
+		"ipns": ipns.Validator{KeyBook: h.Peerstore()},
+	}
+
 	return nil
 }
 
-func getSingletonModule(category string, cfglist []conf.ModuleConfig, defaultID string) (conf.Module, error) {
-	if len(cfglist) > 1 {
-		return nil, fmt.Errorf("too many %s modules specified in configuration, only one is allowed", category)
+func (p *Peer) setupRouting(ctx context.Context, cfg *conf.Config) error {
+	if p.offline {
+		p.routing = routinghelpers.Null{}
+		return nil
 	}
 
-	modules := conf.ModulesForCategory(category)
-
-	var module conf.Module
-	if len(cfglist) == 0 {
-		var ok bool
-		module, ok = modules[defaultID]
-		if !ok {
-			return nil, fmt.Errorf("default %s %q is not a loaded module", category, defaultID)
-		}
-	} else {
-		moduleconf := cfglist[0]
-		var ok bool
-		module, ok = modules[moduleconf.ID]
-		if !ok {
-			return nil, fmt.Errorf("%s %q specified in configuratiion is not a loaded module", category, moduleconf.ID)
-		}
-		if err := moduleconf.Configure(module); err != nil {
-			return nil, fmt.Errorf("unmarshal %s %q config: %w", category, moduleconf.ID, err)
-		}
-
-		if err := module.ValidateModule(); err != nil {
-			return nil, fmt.Errorf("validate %s %q config: %w", category, moduleconf.ID, err)
-		}
+	rmodules, err := cfg.LoadModules(conf.ModuleCategoryRouting)
+	if err != nil {
+		return fmt.Errorf("get routing modules: %w", err)
 	}
 
-	return module, nil
-}
-
-func getModules(category string, cfglist []conf.ModuleConfig) ([]conf.Module, error) {
-	modules := conf.ModulesForCategory(category)
-
-	mods := []conf.Module{}
-	for _, moduleconf := range cfglist {
-		module, ok := modules[moduleconf.ID]
-		if !ok {
-			return nil, fmt.Errorf("%s %q specified in configuration is not a loaded module", category, moduleconf.ID)
-		}
-		if err := moduleconf.Configure(module); err != nil {
-			return nil, fmt.Errorf("unmarshal %s %q config: %w", category, moduleconf.ID, err)
+	var routings []routing.Routing
+	for _, module := range rmodules {
+		r, err := module.(conf.RoutingProvider).ProvideRouting(ctx, p.ds, p.host, p.validator)
+		if err != nil {
+			return fmt.Errorf("provide routing: %w", err)
 		}
 
-		if err := module.ValidateModule(); err != nil {
-			return nil, fmt.Errorf("validate %s %q config: %w", category, moduleconf.ID, err)
-		}
-
-		mods = append(mods, module)
+		routings = append(routings, r)
 	}
 
-	return mods, nil
+	if len(routings) == 0 {
+		p.routing = routinghelpers.Null{}
+		return nil
+	}
+
+	if len(routings) == 1 {
+		p.routing = routings[0]
+		return nil
+	}
+
+	module, err := cfg.LoadSingletonModule(conf.ModuleCategoryRoutingComposer, "tiered")
+	if err != nil {
+		return fmt.Errorf("get module: %w", err)
+	}
+
+	routing, err := module.(conf.RoutingComposer).ComposeRouting(ctx, routings, p.validator)
+	if err != nil {
+		return fmt.Errorf("provide conn manager host: %w", err)
+	}
+	p.routing = routing
+
+	return nil
 }

@@ -18,9 +18,9 @@ func init() {
 }
 
 type Basic struct {
-	Low         int
-	High        int
-	GracePeriod time.Duration
+	Low         int           `json:"low"`
+	High        int           `json:"high"`
+	GracePeriod time.Duration `json:"grace_period"`
 }
 
 func (b *Basic) ID() string { return "basic" }
@@ -30,5 +30,5 @@ func (b *Basic) ValidateModule() error {
 }
 
 func (b *Basic) ProvideConnManager(ctx context.Context) (connmgr.ConnManager, error) {
-	return bconnmgr.NewConnManager(b.Low, 600, bconnmgr.WithGracePeriod(b.GracePeriod))
+	return bconnmgr.NewConnManager(b.Low, b.High, bconnmgr.WithGracePeriod(b.GracePeriod))
 }

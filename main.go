@@ -74,6 +74,11 @@ var app = &cli.App{
 		ctx := cctx.Context
 
 		configstr := `{
+			"peer": {
+				"key_file": "/mnt/disk1/data/meridian/peer.key",
+				"listen_addrs": ["/ip4/0.0.0.0/tcp/4005"],
+				"offline": false
+			},
 			"datastore": {
 				"badger": {
 					"path": "/mnt/disk1/data/meridian/store"
@@ -84,6 +89,26 @@ var app = &cli.App{
 			},
 			"blockstore_wrapper": {
 				"cache": {}
+			},
+			"routing": {
+				"fullrt": {
+					"bootstrap_peers": [
+						"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+						"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+						"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+						"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt"
+					]
+				}
+			},
+			"bootstrapper": {
+				"basic": {
+					"bootstrap_peers": [
+						"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+						"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+						"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+						"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt"
+					]
+				}
 			}
 		}`
 
@@ -92,14 +117,7 @@ var app = &cli.App{
 			return fmt.Errorf("read config: %w", err)
 		}
 
-		pconfig := &ipfs.PeerConfig{
-			ListenAddr:     config.listenAddr,
-			FileSystemPath: config.fileSystemPath,
-			Libp2pKeyFile:  config.libp2pKeyfile,
-			Offline:        config.offline,
-		}
-
-		p, err := ipfs.NewPeer(pconfig, &cfg)
+		p, err := ipfs.NewPeer(&cfg)
 		if err != nil {
 			return fmt.Errorf("new ipfs peer: %w", err)
 		}
@@ -119,22 +137,12 @@ var app = &cli.App{
 
 var (
 	config struct {
-		listenAddr string
-		// datastorePath             string
 		fileSystemPath            string
-		libp2pKeyfile             string
 		offline                   bool
 		garbageCollectionInterval time.Duration
 	}
 
 	flags = []cli.Flag{
-		// &cli.StringFlag{
-		// 	Name:        "ipfs-datastore",
-		// 	Usage:       "Path to IPFS datastore.",
-		// 	Value:       "/mnt/disk1/data/meridian/store", // TODO: remove default
-		// 	Destination: &config.datastorePath,
-		// 	EnvVars:     []string{"meridian_IPFS_DATASTORE"},
-		// },
 		&cli.StringFlag{
 			Name:        "fileroot",
 			Aliases:     []string{"ipfs-fileroot"}, // old name for this flag
@@ -142,20 +150,6 @@ var (
 			Value:       "/mnt/disk1/data/meridian/files", // TODO: remove default
 			Destination: &config.fileSystemPath,
 			EnvVars:     []string{"meridian_FILEROOT"},
-		},
-		&cli.StringFlag{
-			Name:        "ipfs-addr",
-			Usage:       "Multiaddress IPFS node should listen on.",
-			Value:       "/ip4/0.0.0.0/tcp/4005",
-			Destination: &config.listenAddr,
-			EnvVars:     []string{"meridian_IPFS_ADDR"},
-		},
-		&cli.StringFlag{
-			Name:        "ipfs-keyfile",
-			Usage:       "Path to libp2p key file.",
-			Value:       "/mnt/disk1/data/meridian/peer.key",
-			Destination: &config.libp2pKeyfile,
-			EnvVars:     []string{"meridian_IPFS_KEYFILE"},
 		},
 		&cli.BoolFlag{
 			Name:        "offline",
