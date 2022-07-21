@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ipfs/go-ipfs/core/coreunix"
-
 	blockservice "github.com/ipfs/go-blockservice"
 	cid "github.com/ipfs/go-cid"
 	cidutil "github.com/ipfs/go-cidutil"
@@ -27,6 +25,7 @@ import (
 	coreiface "github.com/ipfs/interface-go-ipfs-core"
 	options "github.com/ipfs/interface-go-ipfs-core/options"
 	path "github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/ipfs/kubo/core/coreunix"
 )
 
 type Resolver interface {

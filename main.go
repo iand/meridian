@@ -2,8 +2,10 @@ package meridian
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -19,6 +21,9 @@ import (
 	"github.com/iand/meridian/conf"
 	"github.com/iand/meridian/ipfs"
 )
+
+//go:embed default.json
+var defaultConfig string
 
 func Main() {
 	ctx := context.Background()
@@ -73,48 +78,20 @@ var app = &cli.App{
 	Action: func(cctx *cli.Context) error {
 		ctx := cctx.Context
 
-		configstr := `{
-			"peer": {
-				"key_file": "/mnt/disk1/data/meridian/peer.key",
-				"listen_addrs": ["/ip4/0.0.0.0/tcp/4005"],
-				"offline": false
-			},
-			"datastore": {
-				"badger": {
-					"path": "/mnt/disk1/data/meridian/store"
-				}
-			},
-			"blockstore": {
-				"basic": {}
-			},
-			"blockstore_wrapper": {
-				"cache": {}
-			},
-			"routing": {
-				"fullrt": {
-					"bootstrap_peers": [
-						"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-						"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-						"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-						"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt"
-					]
-				}
-			},
-			"bootstrapper": {
-				"basic": {
-					"bootstrap_peers": [
-						"/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-						"/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-						"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-						"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt"
-					]
-				}
+		var cfgdata []byte
+		if flagValues.configPath != "" {
+			var err error
+			cfgdata, err = ioutil.ReadFile(flagValues.configPath)
+			if err != nil {
+				return fmt.Errorf("read config: %w", err)
 			}
-		}`
+		} else {
+			cfgdata = []byte(defaultConfig)
+		}
 
 		var cfg conf.Config
-		if err := json.Unmarshal([]byte(configstr), &cfg); err != nil {
-			return fmt.Errorf("read config: %w", err)
+		if err := json.Unmarshal(cfgdata, &cfg); err != nil {
+			return fmt.Errorf("parse config: %w", err)
 		}
 
 		p, err := ipfs.NewPeer(&cfg)
@@ -136,34 +113,18 @@ var app = &cli.App{
 }
 
 var (
-	config struct {
-		fileSystemPath            string
-		offline                   bool
-		garbageCollectionInterval time.Duration
+	flagValues struct {
+		configPath string
 	}
 
 	flags = []cli.Flag{
 		&cli.StringFlag{
-			Name:        "fileroot",
+			Name:        "config",
 			Aliases:     []string{"ipfs-fileroot"}, // old name for this flag
-			Usage:       "Path to root of filesystem to be served.",
-			Value:       "/mnt/disk1/data/meridian/files", // TODO: remove default
-			Destination: &config.fileSystemPath,
-			EnvVars:     []string{"meridian_FILEROOT"},
-		},
-		&cli.BoolFlag{
-			Name:        "offline",
-			Usage:       "When true, don't connect to the public ipfs dht.",
-			Value:       false,
-			Destination: &config.offline,
-			EnvVars:     []string{"meridian_OFFLINE"},
-		},
-		&cli.DurationFlag{
-			Name:        "gc-interval",
-			Usage:       "Controls how frequently the ipfs blockstore should be garbage collected to remove orphaned blocks.",
-			Value:       24 * time.Hour,
-			Destination: &config.garbageCollectionInterval,
-			EnvVars:     []string{"meridian_GC_INTERVAL"},
+			Usage:       "Path to JSON config file.",
+			Value:       "", // TODO: remove default
+			Destination: &flagValues.configPath,
+			EnvVars:     []string{"MERIDIAN_CONFIG"},
 		},
 	}
 )

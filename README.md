@@ -6,7 +6,7 @@ An HTTP Gateway for IPFS
 
 ## Overview
 
-This is currently an testbed for gateway experiments.
+This is currently a testbed for gateway experiments.
 
 
 ## Getting Started
@@ -25,7 +25,7 @@ The granularity of composability is still in flux and some of the current system
 The module system aims to be composable via configuration and no special build systems other than importing the necessary code.
 
 Modules are organised into categories such as `datastore`, `blockstore` or `routing`. 
-A full list of categories can be found in [`conf/module.g`](conf/module.go).
+A full list of categories can be found in [`conf/module.go`](conf/module.go).
 
 Each module must provide a unique identifier within its category using its `ID` method.
 A module registers itself with Meridian by calling `conf.RegisterModule` specifying its category and an instance of the module's type. 
@@ -45,6 +45,7 @@ The `routing_composer` system provides a way of configuring how different `routi
 
 To make a new module available for use in configuration simply import that module's package before calling Meridian's `Main` function.
 The [default command line package](cmd/meridian/main.go) imports all the modules declared in this repository so they are all available for use in configuration.
+The [default configuration file](default.json) demonstrates the use of some of the standard modules.
 
 
 

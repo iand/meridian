@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/iand/meridian/ipfs"
-	"github.com/ipfs/go-ipfs/core/corehttp"
+	"github.com/ipfs/kubo/core/corehttp"
 )
 
 type Server struct {
@@ -85,7 +85,8 @@ func (s *Server) registerHandlers() error {
 		Headers:  headers,
 	}
 
-	gwHandler := corehttp.NewGatewayHandler(cfg, s.Gateway)
+	// TODO: pass in offline version of gateway
+	gwHandler := corehttp.NewGatewayHandler(cfg, s.Gateway, s.Gateway)
 	s.mux.Handle("/ipfs/", gwHandler)
 	s.mux.Handle("/ipns/", gwHandler)
 

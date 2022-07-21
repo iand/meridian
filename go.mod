@@ -7,7 +7,7 @@ require (
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
-	github.com/fsnotify/fsnotify v1.5.1 // indirect
+	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/ipfs/go-bitswap v0.7.0
 	github.com/ipfs/go-block-format v0.0.3
@@ -26,38 +26,32 @@ require (
 	github.com/ipfs/go-ipld-cbor v0.0.5 // indirect
 	github.com/ipfs/go-ipld-format v0.4.0
 	github.com/ipfs/go-ipld-legacy v0.1.1 // indirect
-	github.com/ipfs/go-ipns v0.1.2 // indirect
+	github.com/ipfs/go-ipns v0.1.2
 	github.com/ipfs/go-log v1.0.5 // indirect
 	github.com/ipfs/go-merkledag v0.6.0
 	github.com/ipfs/go-metrics-interface v0.0.1
 	github.com/ipfs/go-metrics-prometheus v0.0.2
 	github.com/ipfs/go-verifcid v0.0.1 // indirect
 	github.com/ipld/go-codec-dagpb v1.4.0
-	github.com/ipld/go-ipld-prime v0.16.0
+	github.com/ipld/go-ipld-prime v0.17.0
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
-	github.com/libp2p/go-libp2p v0.19.4
-	github.com/libp2p/go-libp2p-core v0.15.1
+	github.com/libp2p/go-libp2p v0.20.3
+	github.com/libp2p/go-libp2p-core v0.16.1
 	github.com/libp2p/go-libp2p-kad-dht v0.16.0 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.4.7 // indirect
 	github.com/libp2p/go-libp2p-loggables v0.1.0 // indirect
-	github.com/libp2p/go-libp2p-mplex v0.7.0 // indirect
-	github.com/libp2p/go-libp2p-noise v0.4.0 // indirect
 	github.com/libp2p/go-libp2p-peerstore v0.6.0 // indirect
-	github.com/libp2p/go-libp2p-quic-transport v0.17.0 // indirect
 	github.com/libp2p/go-libp2p-record v0.1.3
 	github.com/libp2p/go-libp2p-resource-manager v0.3.0 // indirect
 	github.com/libp2p/go-libp2p-routing-helpers v0.2.3
-	github.com/libp2p/go-libp2p-swarm v0.10.2 // indirect
+	github.com/libp2p/go-libp2p-swarm v0.11.0 // indirect
 	github.com/libp2p/go-libp2p-tls v0.4.1
-	github.com/libp2p/go-libp2p-yamux v0.9.1 // indirect
-	github.com/libp2p/go-tcp-transport v0.5.1 // indirect
-	github.com/libp2p/go-ws-transport v0.6.0 // indirect
 	github.com/miekg/dns v1.1.48 // indirect
 	github.com/multiformats/go-multiaddr v0.5.0
 	github.com/multiformats/go-multiaddr-dns v0.3.1
-	github.com/multiformats/go-multibase v0.0.3 // indirect
-	github.com/multiformats/go-multicodec v0.4.1 // indirect
+	github.com/multiformats/go-multibase v0.1.0 // indirect
+	github.com/multiformats/go-multicodec v0.5.0 // indirect
 	github.com/multiformats/go-multihash v0.2.0
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -72,7 +66,18 @@ require (
 )
 
 require (
-	github.com/ipfs/go-ipfs v0.0.0-00010101000000-000000000000
+	github.com/iand/meridian/modules/blockstore/basic v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/blockstorewrapper/cache v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/bootstrapper/basic v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/connmanager/basic v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/datastore/badger2 v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/datastorewrapper/log v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/routing/dht v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/routing/dual v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/routing/fullrt v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/routing/null v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/routingcomposer/parallel v0.0.0-20220721135820-cc66f458dc47
+	github.com/iand/meridian/modules/routingcomposer/tiered v0.0.0-20220721135820-cc66f458dc47
 	github.com/ipfs/go-ipfs-files v0.1.1
 	github.com/ipfs/go-ipfs-pinner v0.2.1
 	github.com/ipfs/go-log/v2 v2.5.1
@@ -82,12 +87,14 @@ require (
 	github.com/ipfs/go-unixfs v0.4.0
 	github.com/ipfs/go-unixfsnode v1.4.0
 	github.com/ipfs/interface-go-ipfs-core v0.7.0
+	github.com/ipfs/kubo v0.0.0-00010101000000-000000000000
 	github.com/urfave/cli/v2 v2.3.0
 )
 
 require (
 	bazil.org/fuse v0.0.0-20200117225306-7b5117fecadc // indirect
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
+	github.com/DataDog/zstd v1.4.1 // indirect
 	github.com/Stebalien/go-bitfield v0.0.1 // indirect
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect
 	github.com/alexbrainman/goissue34681 v0.0.0-20191006012335-3fc7a47baff5 // indirect
@@ -95,6 +102,8 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/btcsuite/btcd v0.22.1 // indirect
+	github.com/btcsuite/btcd/btcec/v2 v2.1.3 // indirect
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/ceramicnetwork/go-dag-jose v0.1.0 // indirect
@@ -106,8 +115,11 @@ require (
 	github.com/crackcomm/go-gitignore v0.0.0-20170627025303-887ab5e44cc3 // indirect
 	github.com/cskr/pubsub v1.0.2 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/dgraph-io/badger v1.6.2 // indirect
+	github.com/dgraph-io/badger/v2 v2.2007.3 // indirect
 	github.com/dgraph-io/ristretto v0.0.3-0.20200630154024-f66de99634de // indirect
+	github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/elgris/jsondiff v0.0.0-20160530203242-765b5c24c302 // indirect
@@ -136,7 +148,9 @@ require (
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/go-bitfield v1.0.0 // indirect
+	github.com/ipfs/go-delegated-routing v0.3.0 // indirect
 	github.com/ipfs/go-ds-badger v0.3.0 // indirect
+	github.com/ipfs/go-ds-badger2 v0.1.3 // indirect
 	github.com/ipfs/go-ds-flatfs v0.5.1 // indirect
 	github.com/ipfs/go-ds-leveldb v0.5.0 // indirect
 	github.com/ipfs/go-ds-measure v0.2.0 // indirect
@@ -153,37 +167,31 @@ require (
 	github.com/ipfs/go-peertaskqueue v0.7.1 // indirect
 	github.com/ipfs/go-pinning-service-http-client v0.1.1 // indirect
 	github.com/ipfs/tar-utils v0.0.2 // indirect
-	github.com/ipld/go-car v0.3.2 // indirect
-	github.com/ipld/go-car/v2 v2.1.1 // indirect
+	github.com/ipld/edelweiss v0.1.4 // indirect
+	github.com/ipld/go-car v0.4.0 // indirect
+	github.com/ipld/go-car/v2 v2.4.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/klauspost/compress v1.15.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.12 // indirect
 	github.com/koron/go-ssdp v0.0.2 // indirect
 	github.com/libp2p/go-buffer-pool v0.0.2 // indirect
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
-	github.com/libp2p/go-conn-security-multistream v0.3.0 // indirect
 	github.com/libp2p/go-doh-resolver v0.4.0 // indirect
 	github.com/libp2p/go-eventbus v0.2.1 // indirect
 	github.com/libp2p/go-flow-metrics v0.0.3 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.2.0 // indirect
-	github.com/libp2p/go-libp2p-blankhost v0.3.0 // indirect
-	github.com/libp2p/go-libp2p-discovery v0.6.0 // indirect
+	github.com/libp2p/go-libp2p-discovery v0.7.0 // indirect
 	github.com/libp2p/go-libp2p-gostream v0.3.0 // indirect
 	github.com/libp2p/go-libp2p-http v0.2.1 // indirect
-	github.com/libp2p/go-libp2p-nat v0.1.0 // indirect
-	github.com/libp2p/go-libp2p-pnet v0.2.0 // indirect
 	github.com/libp2p/go-libp2p-pubsub v0.6.1 // indirect
 	github.com/libp2p/go-libp2p-pubsub-router v0.5.0 // indirect
-	github.com/libp2p/go-libp2p-transport-upgrader v0.7.1 // indirect
 	github.com/libp2p/go-libp2p-xor v0.1.0 // indirect
 	github.com/libp2p/go-mplex v0.7.0 // indirect
 	github.com/libp2p/go-msgio v0.2.0 // indirect
 	github.com/libp2p/go-nat v0.1.0 // indirect
 	github.com/libp2p/go-netroute v0.2.0 // indirect
 	github.com/libp2p/go-openssl v0.0.7 // indirect
-	github.com/libp2p/go-reuseport v0.1.0 // indirect
-	github.com/libp2p/go-reuseport-transport v0.1.0 // indirect
-	github.com/libp2p/go-stream-muxer-multistream v0.4.0 // indirect
+	github.com/libp2p/go-reuseport v0.2.0 // indirect
 	github.com/libp2p/go-yamux/v3 v3.1.2 // indirect
 	github.com/libp2p/zeroconf/v2 v2.1.1 // indirect
 	github.com/lucas-clemente/quic-go v0.27.1 // indirect
@@ -204,7 +212,7 @@ require (
 	github.com/multiformats/go-base32 v0.0.4 // indirect
 	github.com/multiformats/go-base36 v0.1.0 // indirect
 	github.com/multiformats/go-multiaddr-fmt v0.1.0 // indirect
-	github.com/multiformats/go-multistream v0.3.0 // indirect
+	github.com/multiformats/go-multistream v0.3.3 // indirect
 	github.com/multiformats/go-varint v0.0.6 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
@@ -268,4 +276,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ipfs/go-ipfs => github.com/iand/go-ipfs v0.13.1-0.20220701080148-636ea11bba99
+replace github.com/ipfs/kubo => github.com/iand/go-ipfs v0.14.1-0.20220721141452-f8cdd96c2a85

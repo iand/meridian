@@ -11,10 +11,10 @@ import (
 	cid "github.com/ipfs/go-cid"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	pin "github.com/ipfs/go-ipfs-pinner"
-	util "github.com/ipfs/go-ipfs/blocks/blockstoreutil"
 	coreiface "github.com/ipfs/interface-go-ipfs-core"
 	caopts "github.com/ipfs/interface-go-ipfs-core/options"
 	path "github.com/ipfs/interface-go-ipfs-core/path"
+	util "github.com/ipfs/kubo/blocks/blockstoreutil"
 )
 
 var _ coreiface.BlockAPI = (*BlockAPI)(nil)
